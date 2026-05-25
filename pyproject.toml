@@ -1,0 +1,20 @@
+[project]
+name = "base-navigator"
+version = "0.1.0"
+description = "Paid Base ecosystem governance and grants intelligence API."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+  "integration: optional live integration tests that require external services",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
