@@ -18,3 +18,6 @@ async def test_health_reports_degraded_memory_mode_and_estimated_revenue():
     assert response.total_usdc_earned_estimated == "0.03"
     assert response.verified_usdc_earned is None
     assert response.revenue_basis == "estimated_from_queries"
+    assert response.total_signals_generated == 0
+    assert response.ignored_events_count == 0
+    assert response.scoring_engine_health == "unknown"

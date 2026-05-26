@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from cache import cache_backend_name, close_cache, get_client
 from config import get_settings
 from errors import register_error_handlers
+from monitors.poller import start_polling_scheduler, stop_polling_scheduler
 from observability import RequestContextMiddleware, configure_logging
 from payments import install_payment_middleware
 from rate_limit import RateLimitMiddleware
@@ -25,12 +26,14 @@ settings = get_settings()
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("Application startup beginning.", extra={"environment": settings.environment})
     await get_client()
+    app.state.polling_scheduler = start_polling_scheduler()
     logger.info(
         "Application startup complete.",
         extra={"cache_backend": await cache_backend_name()},
     )
     yield
     logger.info("Application shutdown beginning.")
+    stop_polling_scheduler(getattr(app.state, "polling_scheduler", None))
     await close_cache()
     logger.info("Application shutdown complete.")
 

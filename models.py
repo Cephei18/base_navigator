@@ -68,3 +68,9 @@ class HealthResponse(BaseModel):
     revenue_basis: Literal["estimated_from_queries", "verified_payments"] = "estimated_from_queries"
     last_governance_update: str | None = None
     last_grants_update: str | None = None
+    total_signals_generated: int = 0
+    high_severity_signals: int = 0
+    ignored_events_count: int = 0
+    escalated_events_count: int = 0
+    signals_in_store: int = 0
+    scoring_engine_health: str = "unknown"

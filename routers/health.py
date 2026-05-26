@@ -15,6 +15,7 @@ from cache import (
 from config import get_settings
 from models import HealthResponse
 from rate_limit import rate_limit_backend_status
+from signals.store import get_signal_store_size
 
 router = APIRouter(tags=["health"])
 
@@ -72,4 +73,10 @@ async def health() -> HealthResponse:
         revenue_basis="estimated_from_queries",
         last_governance_update=await get_value("stats:last_governance_update"),
         last_grants_update=await get_value("stats:last_grants_update"),
+        total_signals_generated=await get_counter("stats:signals_generated"),
+        high_severity_signals=await get_counter("stats:signals_high_severity"),
+        ignored_events_count=await get_counter("stats:signals_ignored"),
+        escalated_events_count=await get_counter("stats:signals_escalated"),
+        signals_in_store=await get_signal_store_size(),
+        scoring_engine_health=await get_value("stats:scoring_engine_health") or "unknown",
     )
