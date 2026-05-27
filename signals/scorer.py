@@ -4,8 +4,10 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from typing import Any, Literal
+import asyncio
 
 from pydantic import BaseModel, ConfigDict, Field
+from signals.timeline import append_tick
 
 SCORING_VERSION = "deterministic-v1"
 SIGNAL_THRESHOLD = 30
@@ -92,6 +94,21 @@ def build_signal(event: dict[str, Any], *, now: datetime | None = None) -> Score
     severity = classify_severity(urgency_score)
     event_id = signal_event.event_id or _fallback_event_id(event)
 
+    # best-effort: append timeline tick asynchronously when an event is scored
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(
+            append_tick(
+                event_id,
+                urgency_score,
+                signal_event.event_type or signal_event.title,
+                ts=created_at,
+            )
+        )
+    except Exception:
+        # no running loop or append failed — ignore (timeline is best-effort)
+        pass
+
     return ScoredSignal(
         event_id=event_id,
         event_type=signal_event.event_type,
@@ -114,6 +131,17 @@ def build_signal(event: dict[str, Any], *, now: datetime | None = None) -> Score
         created_at=created_at.isoformat(),
         raw_event=event,
     )
+
+
+    # best-effort: append timeline tick asynchronously when an event is scored
+    try:
+        event_id = event_id
+        # schedule non-blocking tick write if an event loop is running
+        loop = asyncio.get_running_loop()
+        loop.create_task(append_tick(event_id, urgency_score, signal_event.event_type or signal_event.title, ts=created_at))
+    except Exception:
+        # no running loop or append failed — ignore (timeline is best-effort)
+        pass
 
 
 def classify_severity(score: int) -> Severity:

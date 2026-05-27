@@ -6,6 +6,8 @@ import type { FeedCategory, HealthResponse, SignalFeedResponse } from '@/types/a
 import { FeedView } from './FeedView'
 import { MetricStrip } from './MetricStrip'
 import { SystemStatus } from './SystemStatus'
+import { OnboardingModal } from './OnboardingModal'
+import { DiagnosticsPanel } from './DiagnosticsPanel'
 
 type Tab = FeedCategory | 'status'
 
@@ -24,6 +26,8 @@ export function Shell() {
   const [errors, setErrors] = useState<Partial<Record<Tab, string>>>({})
   const [loading, setLoading] = useState(true)
   const [lastRefresh, setLastRefresh] = useState<Date | undefined>()
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showDiagnostics, setShowDiagnostics] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -56,6 +60,8 @@ export function Shell() {
 
   useEffect(() => {
     void load()
+    const seen = localStorage.getItem('bn:seen_onboarding')
+    setShowOnboarding(!seen)
     const timer = window.setInterval(() => void load(), 60000)
     return () => window.clearInterval(timer)
   }, [])
@@ -73,13 +79,18 @@ export function Shell() {
                 <div className="font-mono text-xs uppercase tracking-[0.18em] text-base-400">Base Navigator</div>
                 <h1 className="mt-2 text-xl font-semibold text-ink-50">Intelligence terminal</h1>
               </div>
-              <button
+              <div className="flex items-center gap-2">
+                <button
                 type="button"
                 onClick={() => void load()}
                 className="rounded-md border border-white/10 px-3 py-2 text-sm text-ink-100 transition hover:border-base-400/50 hover:text-base-400"
               >
                 Refresh
               </button>
+                <button type="button" onClick={() => setShowDiagnostics((s) => !s)} className="rounded-md border border-white/10 px-2 py-2 text-sm text-ink-100 transition hover:border-base-400/50 hover:text-base-400">
+                  Diagnostics
+                </button>
+              </div>
             </div>
 
             <nav className="mt-5 grid grid-cols-2 gap-2 lg:grid-cols-1">
@@ -133,6 +144,8 @@ export function Shell() {
           </div>
         </section>
       </div>
+      {showOnboarding ? <OnboardingModal onClose={() => { localStorage.setItem('bn:seen_onboarding', '1'); setShowOnboarding(false) }} /> : null}
+      {showDiagnostics ? <DiagnosticsPanel onClose={() => setShowDiagnostics(false)} /> : null}
     </main>
   )
 }

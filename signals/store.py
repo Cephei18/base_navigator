@@ -17,6 +17,8 @@ from cache import (
     set_value,
 )
 
+from signals.timeline import append_tick
+
 logger = logging.getLogger(__name__)
 
 SIGNAL_FEED_KEY = "signals:feed"
@@ -61,6 +63,13 @@ async def save_signal_with_result(
     await _write_signal(signal)
     memory["fingerprints"][fingerprint] = current_time.isoformat()
     await _save_memory(_prune_memory(memory, current_time, cooldown_seconds))
+    # append a timeline tick for the saved signal (best-effort)
+    try:
+        score = float(signal.get("urgency_score") or signal.get("score") or 0.0)
+        reason = str(signal.get("event_type") or signal.get("title") or "stored")
+        await append_tick(fingerprint, score, reason, ts=current_time)
+    except Exception as exc:  # pragma: no cover - best-effort write
+        logger.debug("Failed to append timeline tick", extra={"err": str(exc)})
     await _record_saved_signal_stats(signal, current_time)
     return SaveSignalResult(saved=True, reason="stored")
 

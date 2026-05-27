@@ -1,0 +1,13 @@
+:root {
+  --bg: #070b12;
+  --surface-900: rgba(8, 10, 18, 0.9);
+  --base-400: #5cc8d8;
+  --accent: #2ac5a7;
+  --muted: #98a0b3;
+  --glass: rgba(255,255,255,0.02);
+}
+
+.fade-in { animation: fadeIn .28s ease both }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: translateY(0) } }
+
+.card-hover:hover { transform: translateY(-4px); box-shadow: 0 8px 30px rgba(2,6,23,0.6) }

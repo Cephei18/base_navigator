@@ -1,5 +1,9 @@
 import type { Signal } from '@/types/api'
 import { formatDateTime, formatScore, labelize } from '@/lib/format'
+import dynamic from 'next/dynamic'
+import { useState } from 'react'
+
+const Timeline = dynamic(() => import('./Timeline').then((m) => m.Timeline), { ssr: false })
 
 type SignalCardProps = {
   signal: Signal
@@ -20,6 +24,7 @@ const severityDotStyles: Record<string, string> = {
 }
 
 export function SignalCard({ signal }: SignalCardProps) {
+  const [showTimeline, setShowTimeline] = useState(false)
   const severity = String(signal.severity || 'low').toLowerCase()
   const enrichment = signal.llm_enrichment || undefined
   const title = signal.title || labelize(signal.event_type) || 'Untitled signal'
@@ -73,6 +78,21 @@ export function SignalCard({ signal }: SignalCardProps) {
               {reason}
             </span>
           ))}
+        </div>
+      ) : null}
+
+      <div className="mt-4 flex items-center justify-between">
+        <div className="text-sm text-ink-300">{signal.event_id ? `ID: ${signal.event_id}` : null}</div>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setShowTimeline((s) => !s)} className="rounded px-3 py-1 text-sm border border-white/10 hover:bg-white/[0.02]">
+            {showTimeline ? 'Hide timeline' : 'View timeline'}
+          </button>
+        </div>
+      </div>
+
+      {showTimeline && signal.event_id ? (
+        <div className="mt-3 animate-fade-in">
+          <Timeline eventId={signal.event_id} />
         </div>
       ) : null}
     </article>
