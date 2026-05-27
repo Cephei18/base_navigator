@@ -32,6 +32,7 @@ class SignalEvent(BaseModel):
     estimated_treasury_impact_usd: float = 0.0
     quorum_at_risk: bool = False
     for_vs_against_swing: bool = False
+    force_llm_reasoning: bool = False
     current: dict[str, Any] = Field(default_factory=dict)
     previous: dict[str, Any] | None = None
 
@@ -96,7 +97,9 @@ def build_signal(event: dict[str, Any], *, now: datetime | None = None) -> Score
         importance_score=importance_score,
         reasons=[component.reason for component in components],
         score_components=components,
-        requires_llm_reasoning=urgency_score >= SIGNAL_THRESHOLD,
+        requires_llm_reasoning=(
+            urgency_score >= HIGH_SIGNAL_THRESHOLD or signal_event.force_llm_reasoning
+        ),
         notify_users=urgency_score >= CRITICAL_SIGNAL_THRESHOLD,
         store_as_major_signal=urgency_score >= HIGH_SIGNAL_THRESHOLD,
         dashboard_worthy=urgency_score >= SIGNAL_THRESHOLD,

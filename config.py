@@ -67,11 +67,14 @@ class Settings:
     rate_limit_refresh_window_seconds: int
     governance_cache_ttl: int
     grants_cache_ttl: int
+    allow_live_fallback: bool
+    source_stale_hours: int
     gemini_api_key: str | None
     gemini_model: str
     enable_x402: bool
     wallet_address: str | None
     x402_price_usd: str
+    x402_premium_price_usd: str
     x402_network_id: str
     x402_facilitator_url: str
     internal_key: str | None
@@ -104,11 +107,14 @@ def get_settings() -> Settings:
         rate_limit_refresh_window_seconds=_int_env("RATE_LIMIT_REFRESH_WINDOW_SECONDS", 60),
         governance_cache_ttl=_int_env("GOVERNANCE_CACHE_TTL", 300),
         grants_cache_ttl=_int_env("GRANTS_CACHE_TTL", 3600),
+        allow_live_fallback=_bool_env("ALLOW_LIVE_FALLBACK", False),
+        source_stale_hours=_int_env("SOURCE_STALE_HOURS", 24),
         gemini_api_key=os.getenv("GEMINI_API_KEY") or None,
         gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
         enable_x402=_bool_env("ENABLE_X402", False),
         wallet_address=os.getenv("WALLET_ADDRESS") or None,
         x402_price_usd=os.getenv("X402_PRICE_USD", "$0.01"),
+        x402_premium_price_usd=os.getenv("X402_PREMIUM_PRICE_USD", "$0.05"),
         x402_network_id=_network_id(),
         x402_facilitator_url=os.getenv("X402_FACILITATOR_URL", "https://x402.org/facilitator"),
         internal_key=os.getenv("INTERNAL_KEY") or None,

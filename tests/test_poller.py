@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import cache
 from monitors import poller
+from signals import store
 
 
 async def test_poll_ecosystem_stores_state_and_prioritized_signals(monkeypatch):
@@ -34,11 +35,15 @@ async def test_poll_ecosystem_stores_state_and_prioritized_signals(monkeypatch):
 
     monkeypatch.setattr(poller, "fetch_active_proposals", fake_fetch_active_proposals)
     monkeypatch.setattr(poller, "fetch_active_grants", fake_fetch_active_grants)
+    monkeypatch.setattr(poller, "snapshot_fetch_ok", lambda: True)
+    monkeypatch.setattr(poller, "gitcoin_fetch_ok", lambda: True)
 
     signals = await poller.poll_ecosystem()
 
     assert await cache.get_value(poller.SNAPSHOT_STATE_KEY) == [proposal]
     assert await cache.get_value(poller.GITCOIN_STATE_KEY) == [grant]
+    assert await cache.get_value("stats:last_snapshot_success_at") is not None
+    assert await cache.get_value("stats:last_gitcoin_success_at") is not None
     assert len(signals) == 1
     assert signals[0]["event_type"] == "proposal_new"
     assert signals[0]["severity"] == "high"
@@ -121,3 +126,40 @@ async def test_process_diff_events_discards_low_score_noise():
 
     assert generated == []
     assert await cache.get_counter("stats:signals_ignored") == 1
+
+
+async def test_process_diff_events_suppresses_duplicates_before_enrichment(monkeypatch):
+    now = datetime(2026, 5, 26, tzinfo=UTC)
+    existing_signal = {
+        "event_id": "duplicate-event",
+        "event_type": "proposal_changed",
+        "source": "snapshot",
+        "protocol": "Base DAO",
+        "title": "Duplicate vote shift",
+        "severity": "high",
+        "urgency_score": 60,
+    }
+    await store.save_signal(existing_signal, now=now)
+
+    async def fail_enrichment(*args, **kwargs):
+        raise AssertionError("duplicate signals should not reach enrichment")
+
+    monkeypatch.setattr(poller, "enrich_signal", fail_enrichment)
+
+    generated = await poller.process_diff_events(
+        [
+            {
+                "event_id": "duplicate-event",
+                "event_type": "proposal_changed",
+                "source": "snapshot",
+                "protocol": "Base DAO",
+                "title": "Duplicate vote shift",
+                "vote_swing_pct": 21,
+                "estimated_treasury_impact_usd": 200_000,
+            }
+        ],
+        now=now,
+    )
+
+    assert generated == []
+    assert await cache.get_counter("stats:signals_duplicates_suppressed") == 1

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -43,6 +43,19 @@ class GrantsResponse(BaseModel):
     pro_tip: str
 
 
+class SignalFeedResponse(BaseModel):
+    source: Literal["precomputed", "live_fallback"]
+    generated_at: str
+    category: Literal["all", "governance", "grants"] = "all"
+    premium: bool = False
+    signals_count: int
+    quiet_period: bool
+    message: str
+    severity_summary: dict[str, int]
+    signals: list[dict[str, Any]]
+    live_fallback: dict[str, Any] | None = None
+
+
 class HealthResponse(BaseModel):
     status: str
     version: str
@@ -68,9 +81,32 @@ class HealthResponse(BaseModel):
     revenue_basis: Literal["estimated_from_queries", "verified_payments"] = "estimated_from_queries"
     last_governance_update: str | None = None
     last_grants_update: str | None = None
+    last_poll_time: str | None = None
+    next_poll_time: str | None = None
+    scheduler_running: bool = False
     total_signals_generated: int = 0
     high_severity_signals: int = 0
     ignored_events_count: int = 0
     escalated_events_count: int = 0
     signals_in_store: int = 0
+    signals_in_feed: int = 0
     scoring_engine_health: str = "unknown"
+    total_gemini_enrichments: int = 0
+    gemini_enrichments_skipped: int = 0
+    gemini_enrichment_cache_hits: int = 0
+    gemini_enrichment_cache_misses: int = 0
+    gemini_failures: int = 0
+    gemini_fallbacks: int = 0
+    gemini_calls_today: int = 0
+    gemini_daily_cap: int = 50
+    average_gemini_enrichment_latency_ms: float = 0.0
+    last_successful_enrichment: str | None = None
+    last_snapshot_success_at: str | None = None
+    last_snapshot_non_empty_at: str | None = None
+    last_snapshot_failure_at: str | None = None
+    last_gitcoin_success_at: str | None = None
+    last_gitcoin_non_empty_at: str | None = None
+    last_gitcoin_failure_at: str | None = None
+    snapshot_data_stale: bool = False
+    gitcoin_data_stale: bool = False
+    stale_source_warnings: list[str] = Field(default_factory=list)

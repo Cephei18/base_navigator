@@ -18,6 +18,9 @@ async def test_memory_counter_fallback():
     assert await cache.increment_counter("stats:queries_served") == 1
     assert await cache.increment_counter("stats:queries_served", amount=2) == 3
     assert await cache.get_counter("stats:queries_served") == 3
+    assert await cache.increment_counter_capped("stats:capped", 2) == (True, 1)
+    assert await cache.increment_counter_capped("stats:capped", 2) == (True, 2)
+    assert await cache.increment_counter_capped("stats:capped", 2) == (False, 2)
 
 
 async def test_redis_startup_validation_pings_once(monkeypatch):

@@ -14,7 +14,7 @@ from monitors.poller import start_polling_scheduler, stop_polling_scheduler
 from observability import RequestContextMiddleware, configure_logging
 from payments import install_payment_middleware
 from rate_limit import RateLimitMiddleware
-from routers import governance, grants, health
+from routers import governance, grants, health, signals
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -61,4 +61,5 @@ register_error_handlers(app, settings)
 
 app.include_router(governance.router, prefix="/api")
 app.include_router(grants.router, prefix="/api")
+app.include_router(signals.router, prefix="/api")
 app.include_router(health.router)

@@ -9,6 +9,7 @@ import httpx
 from config import get_settings
 
 logger = logging.getLogger(__name__)
+_last_fetch_ok: bool | None = None
 
 SNAPSHOT_QUERY = """
 query ActiveBaseProposals($spaces: [String], $first: Int) {
@@ -37,6 +38,7 @@ query ActiveBaseProposals($spaces: [String], $first: Int) {
 
 
 async def fetch_active_proposals(first: int = 20) -> list[dict[str, Any]]:
+    global _last_fetch_ok
     settings = get_settings()
     payload = {
         "query": SNAPSHOT_QUERY,
@@ -58,15 +60,23 @@ async def fetch_active_proposals(first: int = 20) -> list[dict[str, Any]]:
             if attempt == 0:
                 await asyncio.sleep(1)
                 continue
+            _last_fetch_ok = False
             return []
 
     if data.get("errors"):
         logger.warning("Snapshot GraphQL errors.", extra={"errors": data["errors"]})
+        _last_fetch_ok = False
         return []
 
     proposals = data.get("data", {}).get("proposals", [])
     if not isinstance(proposals, list):
+        _last_fetch_ok = False
         return []
     parsed = [proposal for proposal in proposals if isinstance(proposal, dict)]
+    _last_fetch_ok = True
     logger.info("Snapshot fetch complete.", extra={"proposal_count": len(parsed)})
     return parsed
+
+
+def snapshot_fetch_ok() -> bool | None:
+    return _last_fetch_ok

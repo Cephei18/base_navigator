@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from config import get_settings
 
 logger = logging.getLogger(__name__)
+_last_gitcoin_fetch_ok: bool | None = None
 
 GITCOIN_ROUNDS_QUERY = """
 query BaseRounds($chainId: Int!) {
@@ -57,6 +58,8 @@ async def fetch_active_grants() -> list[dict[str, Any]]:
 
 
 async def _fetch_gitcoin_rounds(url: str) -> list[dict[str, Any]]:
+    global _last_gitcoin_fetch_ok
+    _last_gitcoin_fetch_ok = False
     payloads = [
         {"query": GITCOIN_ROUNDS_QUERY, "variables": {"chainId": 8453}},
         {"query": GITCOIN_ROUNDS_FALLBACK_QUERY},
@@ -82,6 +85,8 @@ async def _fetch_gitcoin_rounds(url: str) -> list[dict[str, Any]]:
             if data.get("errors"):
                 logger.info("Gitcoin query variant failed.", extra={"errors": data["errors"]})
                 continue
+            if "data" not in data:
+                continue
             rounds = data.get("data", {}).get("rounds", [])
             if isinstance(rounds, list):
                 parsed = [
@@ -89,9 +94,14 @@ async def _fetch_gitcoin_rounds(url: str) -> list[dict[str, Any]]:
                     for round in rounds
                     if isinstance(round, dict)
                 ]
+                _last_gitcoin_fetch_ok = True
                 logger.info("Gitcoin fetch complete.", extra={"round_count": len(parsed)})
                 return parsed
     return []
+
+
+def gitcoin_fetch_ok() -> bool | None:
+    return _last_gitcoin_fetch_ok
 
 
 async def _fetch_base_batches(url: str) -> list[dict[str, Any]]:

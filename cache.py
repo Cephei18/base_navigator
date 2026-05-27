@@ -121,6 +121,38 @@ async def increment_counter(key: str, amount: int = 1) -> int:
     return current
 
 
+async def increment_counter_capped(key: str, cap: int) -> tuple[bool, int]:
+    client = await get_client()
+    if client is not None:
+        try:
+            result = await client.eval(
+                """
+                local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+                local cap = tonumber(ARGV[1])
+                if current >= cap then
+                    return {0, current}
+                end
+                local updated = redis.call('INCR', KEYS[1])
+                return {1, updated}
+                """,
+                1,
+                key,
+                cap,
+            )
+            allowed = bool(int(result[0]))
+            count = int(result[1])
+            return allowed, count
+        except RedisError as exc:
+            await _handle_redis_error(exc)
+
+    current = int(_memory_values.get(key, 0))
+    if current >= cap:
+        return False, current
+    current += 1
+    _memory_values[key] = current
+    return True, current
+
+
 async def get_counter(key: str) -> int:
     client = await get_client()
     if client is not None:

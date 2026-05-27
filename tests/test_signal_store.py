@@ -43,6 +43,7 @@ async def test_save_signal_suppresses_duplicates_inside_cooldown():
     second = await store.save_signal_with_result(signal, now=now + timedelta(minutes=5))
 
     assert first.saved is True
+    assert await store.signal_in_cooldown(signal, now=now + timedelta(minutes=5)) is True
     assert second.saved is False
     assert second.reason == "duplicate_cooldown"
     assert len(await store.get_signals(limit=10)) == 1

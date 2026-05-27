@@ -1,16 +1,16 @@
 # Base Navigator
 
-Base Navigator is a FastAPI service that turns raw Base ecosystem governance and grants signals into structured JSON intelligence for builders, agents, and internal automation.
+Base Navigator is a FastAPI service that monitors Base ecosystem governance and grants activity, scores meaningful changes, selectively enriches high-value signals, and serves a precomputed intelligence feed for builders, agents, and internal automation.
 
-The current product is intentionally small: two paid-ready intelligence endpoints, one public health endpoint, Redis caching with in-memory fallback, Gemini synthesis with deterministic fallback, structured request logging, rate limiting, Docker deployment files, and an optional Farcaster daily post script.
+The current product is intentionally small: a scheduled signal pipeline, feed-oriented APIs, one public health endpoint, Redis-backed operational memory with in-memory fallback, selective Gemini enrichment, structured request logging, rate limiting, Docker deployment files, and an optional Farcaster daily post script.
 
 ## What It Does
 
 - Tracks active governance proposals from configured Snapshot spaces.
 - Tracks Base ecosystem grant opportunities from Gitcoin and Base Batches.
-- Uses Gemini to synthesize raw upstream data into concise developer-friendly JSON.
-- Falls back to deterministic summaries when Gemini or upstream services fail.
-- Caches responses in Redis when available, or process memory when Redis is unavailable.
+- Scores meaningful changes deterministically before any LLM enrichment.
+- Uses Gemini only for high-value pre-scored signal enrichment.
+- Serves precomputed signals from Redis when available, or process memory when Redis is unavailable.
 - Protects intelligence endpoints with optional x402 payment middleware.
 - Exposes health, degraded-mode, request-count, and estimated revenue information.
 
@@ -24,27 +24,57 @@ curl http://localhost:8000/health
 
 Returns runtime status, cache backend, Redis status, rate-limit backend, Gemini/x402 configuration state, request counters, and estimated USDC revenue.
 
+### Signal Feed
+
+```bash
+curl http://localhost:8000/api/signals
+```
+
+Returns the latest precomputed ecosystem signals. This endpoint does not fetch upstream data and does not call Gemini:
+
+```json
+{
+  "source": "precomputed",
+  "category": "all",
+  "signals_count": 0,
+  "quiet_period": true,
+  "message": "No high-priority ecosystem signals detected.",
+  "severity_summary": {},
+  "signals": []
+}
+```
+
+Premium signal feed:
+
+```bash
+curl http://localhost:8000/api/signals/premium
+```
+
+When x402 is enabled, `/api/signals/premium` is protected at `X402_PREMIUM_PRICE_USD` and returns richer signal payloads, including score components and raw event context for future premium dashboards.
+
 ### Governance Intelligence
 
 ```bash
 curl -X POST http://localhost:8000/api/governance
 ```
 
-Returns active governance proposal summaries:
+Returns governance-related precomputed signals:
 
 ```json
 {
-  "as_of": "2026-05-25T18:17:54.492886+00:00",
-  "active_proposals": [],
-  "urgent_count": 0,
-  "summary_for_agents": "No active monitored Base ecosystem governance proposals were found."
+  "source": "precomputed",
+  "category": "governance",
+  "signals_count": 0,
+  "quiet_period": true,
+  "message": "No high-priority ecosystem signals detected.",
+  "signals": []
 }
 ```
 
-Force a fresh upstream fetch and synthesis pass:
+Live fallback is disabled by default. To temporarily allow the legacy live fetch and synthesis path only when the feed is empty:
 
-```bash
-curl -X POST "http://localhost:8000/api/governance?refresh=true"
+```env
+ALLOW_LIVE_FALLBACK=true
 ```
 
 ### Grants Intelligence
@@ -53,25 +83,16 @@ curl -X POST "http://localhost:8000/api/governance?refresh=true"
 curl -X POST http://localhost:8000/api/grants
 ```
 
-Returns open grants and urgent deadlines:
+Returns grants/funding-related precomputed signals:
 
 ```json
 {
-  "as_of": "2026-05-25T18:18:01.338643+00:00",
-  "open_grants": [
-    {
-      "name": "Base Batches 2026",
-      "operator": "Base",
-      "amount": "See program page",
-      "deadline": null,
-      "urgency": "low",
-      "eligibility": ["Builds in or benefits the Base ecosystem"],
-      "apply_url": "https://basebatches.xyz",
-      "tldr": "A program designed to help builders kickstart their business."
-    }
-  ],
-  "urgent_deadlines": [],
-  "pro_tip": "Prioritize grants with live application windows and prepare a concise builder traction summary."
+  "source": "precomputed",
+  "category": "grants",
+  "signals_count": 0,
+  "quiet_period": true,
+  "message": "No high-priority ecosystem signals detected.",
+  "signals": []
 }
 ```
 
@@ -98,17 +119,25 @@ RateLimitMiddleware
   v
 x402 payment middleware
   - optional
-  - protects POST /api/governance and POST /api/grants
+  - protects POST /api/governance, POST /api/grants, and GET /api/signals/premium
   - supports X-Internal-Key bypass for trusted automation
   |
   v
 FastAPI router
   |
-  +-- cache lookup
-  +-- upstream fetchers
-  +-- Gemini synthesis
-  +-- deterministic fallback
+  +-- Redis signal feed read
+  +-- category filtering
+  +-- quiet-period response
+  +-- optional live fallback only when ALLOW_LIVE_FALLBACK=true
   +-- response validation
+
+Background scheduler
+  |
+  +-- upstream fetchers
+  +-- diff detection
+  +-- deterministic scoring
+  +-- selective Gemini enrichment
+  +-- Redis signal feed write
 ```
 
 ## Project Structure
@@ -225,6 +254,7 @@ To protect paid endpoints:
 ENABLE_X402=true
 WALLET_ADDRESS=0xYourReceivingWallet
 X402_PRICE_USD=$0.01
+X402_PREMIUM_PRICE_USD=$0.05
 X402_NETWORK_ID=eip155:84532
 ```
 
@@ -232,6 +262,7 @@ Protected endpoints:
 
 - `POST /api/governance`
 - `POST /api/grants`
+- `GET /api/signals/premium`
 
 Trusted internal jobs can bypass x402 by sending:
 
@@ -350,11 +381,20 @@ REDIS_URL=redis://...
 GEMINI_API_KEY=...
 ENABLE_X402=true
 WALLET_ADDRESS=0xYourReceivingWallet
+X402_PREMIUM_PRICE_USD=$0.05
+ALLOW_LIVE_FALLBACK=false
+SOURCE_STALE_HOURS=24
 INTERNAL_KEY=long-random-secret
 PUBLIC_BASE_URL=https://your-service.example
 ```
 
 Attach Redis in Railway, add the environment variables, and deploy from GitHub.
+
+### Scheduler Safety
+
+The in-process APScheduler poller must run in a single API worker. The Docker command pins `uvicorn` to `--workers 1` so Railway runs one scheduler loop per deployed service instance.
+
+If you scale horizontally later, move polling to a separate worker/cron service or add Redis leader election before increasing API replicas. Running multiple API workers without leader election can duplicate polls, signals, and Gemini enrichment attempts.
 
 ## Current Reality Check
 
@@ -363,7 +403,8 @@ Working now:
 - FastAPI app boots.
 - Health endpoint reports runtime state.
 - Redis cache and memory fallback paths exist.
-- Gemini synthesis is implemented with deterministic fallback.
+- Scheduled polling, deterministic signal scoring, and selective Gemini enrichment exist.
+- Public and premium signal feed APIs serve precomputed intelligence.
 - x402 middleware can require payment on protected routes.
 - Rate limiting and request IDs are tested.
 - Docker and Railway config files exist.

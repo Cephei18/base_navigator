@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter
@@ -14,7 +15,9 @@ from cache import (
 )
 from config import get_settings
 from models import HealthResponse
+from monitors.poller import polling_scheduler_status
 from rate_limit import rate_limit_backend_status
+from signals.reasoner import DAILY_GEMINI_CAP, average_enrichment_latency_ms
 from signals.store import get_signal_store_size
 
 router = APIRouter(tags=["health"])
@@ -34,6 +37,18 @@ async def health() -> HealthResponse:
     query_count = await get_counter("stats:queries_served")
     http_request_count = await get_counter("stats:http_requests_total")
     rate_limited_count = await get_counter("stats:http_rate_limited_total")
+    today = datetime.now(UTC).date().isoformat()
+    scheduler_status = polling_scheduler_status()
+    signal_store_size = await get_signal_store_size()
+    last_snapshot_success_at = await get_value("stats:last_snapshot_success_at")
+    last_gitcoin_success_at = await get_value("stats:last_gitcoin_success_at")
+    snapshot_data_stale = _is_stale(last_snapshot_success_at, settings.source_stale_hours)
+    gitcoin_data_stale = _is_stale(last_gitcoin_success_at, settings.source_stale_hours)
+    stale_source_warnings = []
+    if snapshot_data_stale:
+        stale_source_warnings.append("snapshot_data_stale")
+    if gitcoin_data_stale:
+        stale_source_warnings.append("gitcoin_data_stale")
     current_redis_status = await redis_status()
     current_rate_limit_backend = await rate_limit_backend_status(settings)
     degraded_reasons: list[str] = []
@@ -73,10 +88,45 @@ async def health() -> HealthResponse:
         revenue_basis="estimated_from_queries",
         last_governance_update=await get_value("stats:last_governance_update"),
         last_grants_update=await get_value("stats:last_grants_update"),
+        last_poll_time=await get_value("stats:last_poll_time"),
+        next_poll_time=scheduler_status["next_poll_time"],
+        scheduler_running=scheduler_status["scheduler_running"],
         total_signals_generated=await get_counter("stats:signals_generated"),
         high_severity_signals=await get_counter("stats:signals_high_severity"),
         ignored_events_count=await get_counter("stats:signals_ignored"),
         escalated_events_count=await get_counter("stats:signals_escalated"),
-        signals_in_store=await get_signal_store_size(),
+        signals_in_store=signal_store_size,
+        signals_in_feed=signal_store_size,
         scoring_engine_health=await get_value("stats:scoring_engine_health") or "unknown",
+        total_gemini_enrichments=await get_counter("stats:gemini_enrichments"),
+        gemini_enrichments_skipped=await get_counter("stats:gemini_enrichments_skipped"),
+        gemini_enrichment_cache_hits=await get_counter("stats:gemini_enrichment_cache_hits"),
+        gemini_enrichment_cache_misses=await get_counter("stats:gemini_enrichment_cache_misses"),
+        gemini_failures=await get_counter("stats:gemini_failures"),
+        gemini_fallbacks=await get_counter("stats:gemini_fallbacks"),
+        gemini_calls_today=await get_counter(f"stats:gemini_calls:{today}"),
+        gemini_daily_cap=DAILY_GEMINI_CAP,
+        average_gemini_enrichment_latency_ms=await average_enrichment_latency_ms(),
+        last_successful_enrichment=await get_value("stats:last_gemini_enrichment_at"),
+        last_snapshot_success_at=last_snapshot_success_at,
+        last_snapshot_non_empty_at=await get_value("stats:last_snapshot_non_empty_at"),
+        last_snapshot_failure_at=await get_value("stats:last_snapshot_failure_at"),
+        last_gitcoin_success_at=last_gitcoin_success_at,
+        last_gitcoin_non_empty_at=await get_value("stats:last_gitcoin_non_empty_at"),
+        last_gitcoin_failure_at=await get_value("stats:last_gitcoin_failure_at"),
+        snapshot_data_stale=snapshot_data_stale,
+        gitcoin_data_stale=gitcoin_data_stale,
+        stale_source_warnings=stale_source_warnings,
     )
+
+
+def _is_stale(value: object, threshold_hours: int) -> bool:
+    if not isinstance(value, str) or not value:
+        return True
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return (datetime.now(UTC) - parsed).total_seconds() > threshold_hours * 3600

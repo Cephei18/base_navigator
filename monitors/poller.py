@@ -10,10 +10,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 from cache import get_value, set_value
-from fetchers.gitcoin import fetch_active_grants
-from fetchers.snapshot import fetch_active_proposals
+from fetchers.gitcoin import fetch_active_grants, gitcoin_fetch_ok
+from fetchers.snapshot import fetch_active_proposals, snapshot_fetch_ok
+from signals.reasoner import enrich_signal
 from signals.scorer import SIGNAL_THRESHOLD, build_signal
-from signals.store import increment_stat, save_signal_with_result
+from signals.store import increment_stat, save_signal_with_result, signal_in_cooldown
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,8 @@ SNAPSHOT_STATE_KEY = "state:snapshot:latest"
 GITCOIN_STATE_KEY = "state:gitcoin:latest"
 LAST_POLL_TIME_KEY = "stats:last_poll_time"
 POLL_INTERVAL_MINUTES = 10
+POLL_JOB_ID = "base-navigator-poller"
+_scheduler: Any | None = None
 
 
 async def poll_ecosystem() -> list[dict[str, Any]]:
@@ -29,6 +32,18 @@ async def poll_ecosystem() -> list[dict[str, Any]]:
     previous_poll_time = _parse_datetime(await get_value(LAST_POLL_TIME_KEY))
 
     proposals, grants = await asyncio.gather(fetch_active_proposals(), fetch_active_grants())
+    await _record_source_status(
+        "snapshot",
+        success=snapshot_fetch_ok(),
+        non_empty_count=len(proposals),
+        checked_at=poll_started_at,
+    )
+    await _record_source_status(
+        "gitcoin",
+        success=gitcoin_fetch_ok(),
+        non_empty_count=sum(1 for grant in grants if grant.get("source") == "gitcoin"),
+        checked_at=poll_started_at,
+    )
     previous_proposals = _as_list(await get_value(SNAPSHOT_STATE_KEY))
     previous_grants = _as_list(await get_value(GITCOIN_STATE_KEY))
 
@@ -126,6 +141,20 @@ async def process_diff_events(
                 "scoring_reasons": signal.reasons,
             },
         )
+        if await signal_in_cooldown(payload, now=now):
+            duplicate_count += 1
+            await increment_stat("signals_duplicates_suppressed")
+            logger.info(
+                "Signal discarded.",
+                extra={
+                    "event_id": signal.event_id,
+                    "score": signal.urgency_score,
+                    "reason": "duplicate_cooldown",
+                },
+            )
+            continue
+
+        payload = await enrich_signal(payload, now=now)
         result = await save_signal_with_result(payload, now=now)
         if not result.saved:
             duplicate_count += 1
@@ -304,6 +333,7 @@ def diff_gitcoin_grants(
 
 def start_polling_scheduler() -> Any | None:
     """Start the APScheduler polling loop and return the scheduler instance."""
+    global _scheduler
     try:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
     except ImportError:
@@ -315,7 +345,7 @@ def start_polling_scheduler() -> Any | None:
         poll_ecosystem,
         trigger="interval",
         minutes=POLL_INTERVAL_MINUTES,
-        id="base-navigator-poller",
+        id=POLL_JOB_ID,
         name="Base Navigator ecosystem poller",
         replace_existing=True,
         coalesce=True,
@@ -323,15 +353,52 @@ def start_polling_scheduler() -> Any | None:
         next_run_time=datetime.now(UTC),
     )
     scheduler.start()
+    _scheduler = scheduler
     logger.info("Polling scheduler started.", extra={"interval_minutes": POLL_INTERVAL_MINUTES})
     return scheduler
 
 
 def stop_polling_scheduler(scheduler: Any | None) -> None:
+    global _scheduler
     if scheduler is None:
         return
     scheduler.shutdown(wait=False)
+    if _scheduler is scheduler:
+        _scheduler = None
     logger.info("Polling scheduler stopped.")
+
+
+def polling_scheduler_status() -> dict[str, Any]:
+    if _scheduler is None:
+        return {"scheduler_running": False, "next_poll_time": None}
+    job = _scheduler.get_job(POLL_JOB_ID)
+    next_run_time = getattr(job, "next_run_time", None) if job is not None else None
+    return {
+        "scheduler_running": bool(getattr(_scheduler, "running", False)),
+        "next_poll_time": next_run_time.isoformat() if next_run_time else None,
+    }
+
+
+async def _record_source_status(
+    source: str,
+    *,
+    success: bool | None,
+    non_empty_count: int,
+    checked_at: datetime,
+) -> None:
+    timestamp = checked_at.isoformat()
+    await set_value(f"stats:last_{source}_checked_at", timestamp)
+    if success is True:
+        await set_value(f"stats:last_{source}_success_at", timestamp)
+        if non_empty_count > 0:
+            await set_value(f"stats:last_{source}_non_empty_at", timestamp)
+        return
+    if success is False:
+        await set_value(f"stats:last_{source}_failure_at", timestamp)
+        logger.warning(
+            "Source fetch reported failure.",
+            extra={"source": source, "checked_at": timestamp},
+        )
 
 
 def _snapshot_event(

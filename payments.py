@@ -84,6 +84,14 @@ def install_payment_middleware(app: FastAPI, settings: Settings) -> bool:
             network=settings.x402_network_id,
         )
     ]
+    premium_accepts = [
+        PaymentOption(
+            scheme="exact",
+            pay_to=settings.wallet_address,
+            price=settings.x402_premium_price_usd,
+            network=settings.x402_network_id,
+        )
+    ]
     routes: dict[str, RouteConfig] = {
         "POST /api/governance": RouteConfig(
             accepts=accepts,
@@ -94,6 +102,11 @@ def install_payment_middleware(app: FastAPI, settings: Settings) -> bool:
             accepts=accepts,
             mime_type="application/json",
             description="Base ecosystem grants intelligence.",
+        ),
+        "GET /api/signals/premium": RouteConfig(
+            accepts=premium_accepts,
+            mime_type="application/json",
+            description="Premium Base ecosystem signal intelligence.",
         ),
     }
     app.add_middleware(

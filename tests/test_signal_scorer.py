@@ -63,6 +63,15 @@ def test_severity_classification_boundaries_are_stable():
     assert classify_severity(70) == "critical"
 
 
+def test_medium_signal_stays_deterministic_only():
+    signal = build_signal(_event(vote_swing_pct=21))
+
+    assert signal.urgency_score == 30
+    assert signal.severity == "medium"
+    assert signal.requires_llm_reasoning is False
+    assert signal.dashboard_worthy is True
+
+
 def test_base_native_grant_relevance_is_scored_but_not_over_escalated():
     signal = build_signal(
         _event(

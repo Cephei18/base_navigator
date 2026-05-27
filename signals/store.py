@@ -108,6 +108,22 @@ async def get_signal_store_size() -> int:
     return len(signals) if isinstance(signals, list) else 0
 
 
+async def signal_in_cooldown(
+    signal: dict[str, Any],
+    *,
+    cooldown_seconds: int = SIGNAL_COOLDOWN_SECONDS,
+    now: datetime | None = None,
+) -> bool:
+    current_time = now or datetime.now(UTC)
+    memory = await _load_memory()
+    return _in_cooldown(
+        memory,
+        _signal_fingerprint(signal),
+        current_time,
+        cooldown_seconds,
+    )
+
+
 async def increment_stat(key: str, amount: int = 1) -> int:
     return await increment_counter(_stat_key(key), amount=amount)
 

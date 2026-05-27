@@ -1,12 +1,12 @@
-This is a minimal Vite + React frontend for the Base Navigator backend.
+This is the Next.js intelligence terminal for Base Navigator.
 
 Local run:
 
 1. cd frontend
 2. npm install
-3. Create a `.env` or `.env.local` with `VITE_API_BASE_URL` set to your backend URL, e.g. `http://localhost:8000` (no trailing slash)
+3. Create a `.env` or `.env.local` with `NEXT_PUBLIC_API_BASE_URL` set to your backend URL, e.g. `http://localhost:8000` (no trailing slash)
 4. npm run dev
 
 Notes:
-- The frontend reads the backend base URL from `VITE_API_BASE_URL`. No hosts are hardcoded.
-- If backend endpoints return HTTP 402 (Payment Required), either disable x402 in backend dev settings or set an `INTERNAL_KEY` in the backend and provide it via request headers.
+- The frontend reads precomputed feed APIs only: `/api/signals`, `/api/governance`, `/api/grants`, and `/health`.
+- The premium route is surfaced as a product-ready API path, but payment flow is not implemented in this frontend phase.

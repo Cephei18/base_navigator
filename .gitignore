@@ -40,6 +40,9 @@ yarn-error.log*
 
 # Vite / frontend build
 frontend/dist/
+frontend/.next/
+frontend/out/
+frontend/tsconfig.tsbuildinfo
 
 # Logs
 .log
