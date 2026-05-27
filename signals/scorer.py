@@ -33,6 +33,13 @@ class SignalEvent(BaseModel):
     quorum_at_risk: bool = False
     for_vs_against_swing: bool = False
     force_llm_reasoning: bool = False
+    mention_velocity: float = 0.0
+    engagement_spike: float = 0.0
+    repeated_reference_count: int = 0
+    verified_actor_count: int = 0
+    governance_activity_score: float = 0.0
+    launch_momentum_score: float = 0.0
+    social_attention_score: float = 0.0
     current: dict[str, Any] = Field(default_factory=dict)
     previous: dict[str, Any] | None = None
 
@@ -124,6 +131,7 @@ def _score_components(event: SignalEvent) -> list[ScoreComponent]:
     components.extend(_vote_swing_components(event))
     components.extend(_deadline_components(event))
     components.extend(_treasury_components(event))
+    components.extend(_social_components(event))
 
     if event.is_new_proposal:
         components.append(
@@ -172,6 +180,164 @@ def _score_components(event: SignalEvent) -> list[ScoreComponent]:
                 rule="base_native_program",
                 points=12,
                 reason="Base-native ecosystem relevance",
+            )
+        )
+
+    return components
+
+
+def _social_components(event: SignalEvent) -> list[ScoreComponent]:
+    components: list[ScoreComponent] = []
+
+    if event.source.lower() == "farcaster":
+        components.append(
+            ScoreComponent(
+                category="relevance",
+                rule="farcaster_source",
+                points=8,
+                reason="social signal sourced from Farcaster",
+            )
+        )
+
+    if event.mention_velocity >= 6:
+        components.append(
+            ScoreComponent(
+                category="urgency",
+                rule="mention_velocity_gt_6",
+                points=30,
+                reason="mention velocity is above 6 per window",
+            )
+        )
+    elif event.mention_velocity >= 3:
+        components.append(
+            ScoreComponent(
+                category="urgency",
+                rule="mention_velocity_gt_3",
+                points=18,
+                reason="mention velocity is above 3 per window",
+            )
+        )
+    elif event.mention_velocity >= 1:
+        components.append(
+            ScoreComponent(
+                category="relevance",
+                rule="mention_velocity_present",
+                points=8,
+                reason="ecosystem attention is rising",
+            )
+        )
+
+    if event.engagement_spike >= 40:
+        components.append(
+            ScoreComponent(
+                category="urgency",
+                rule="engagement_spike_gt_40",
+                points=22,
+                reason="engagement spike is above 40",
+            )
+        )
+    elif event.engagement_spike >= 20:
+        components.append(
+            ScoreComponent(
+                category="urgency",
+                rule="engagement_spike_gt_20",
+                points=12,
+                reason="engagement spike is above 20",
+            )
+        )
+
+    if event.repeated_reference_count >= 5:
+        components.append(
+            ScoreComponent(
+                category="importance",
+                rule="repeated_reference_count_gt_5",
+                points=16,
+                reason="ecosystem references are repeating across multiple casts",
+            )
+        )
+    elif event.repeated_reference_count >= 3:
+        components.append(
+            ScoreComponent(
+                category="importance",
+                rule="repeated_reference_count_gt_3",
+                points=10,
+                reason="ecosystem references are repeating",
+            )
+        )
+
+    if event.verified_actor_count >= 3:
+        components.append(
+            ScoreComponent(
+                category="importance",
+                rule="verified_actor_count_gt_3",
+                points=16,
+                reason="multiple verified ecosystem actors are involved",
+            )
+        )
+    elif event.verified_actor_count >= 1:
+        components.append(
+            ScoreComponent(
+                category="relevance",
+                rule="verified_actor_present",
+                points=8,
+                reason="a verified ecosystem actor is involved",
+            )
+        )
+
+    if event.governance_activity_score >= 12:
+        components.append(
+            ScoreComponent(
+                category="urgency",
+                rule="governance_activity_high",
+                points=24,
+                reason="governance discussion is accelerating",
+            )
+        )
+    elif event.governance_activity_score >= 6:
+        components.append(
+            ScoreComponent(
+                category="importance",
+                rule="governance_activity_present",
+                points=12,
+                reason="governance discussion is active",
+            )
+        )
+
+    if event.launch_momentum_score >= 12:
+        components.append(
+            ScoreComponent(
+                category="urgency",
+                rule="launch_momentum_high",
+                points=24,
+                reason="ecosystem launch momentum is building rapidly",
+            )
+        )
+    elif event.launch_momentum_score >= 6:
+        components.append(
+            ScoreComponent(
+                category="importance",
+                rule="launch_momentum_present",
+                points=12,
+                reason="ecosystem launch momentum is present",
+            )
+        )
+
+    if event.social_attention_score >= 20:
+        components.append(
+            ScoreComponent(
+                category="urgency",
+                rule="social_attention_gt_20",
+                points=18,
+                reason="ecosystem attention is moving quickly",
+            )
+        )
+    elif event.social_attention_score >= 10:
+        components.append(
+            ScoreComponent(
+                category="relevance",
+                rule="social_attention_gt_10",
+                points=8,
+                reason="ecosystem attention is moving",
             )
         )
 

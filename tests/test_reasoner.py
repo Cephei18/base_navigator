@@ -160,3 +160,15 @@ async def test_reason_about_signal_compatibility_wrapper(monkeypatch):
     )
 
     assert enrichment["status"] == "analyzed"
+
+
+def test_escalated_social_signal_is_eligible_for_enrichment():
+    assert reasoner.should_enrich_signal(
+        {
+            "source": "farcaster",
+            "severity": "medium",
+            "urgency_score": 48,
+            "requires_llm_reasoning": True,
+            "escalation_recommendation": "immediate_alert",
+        }
+    )

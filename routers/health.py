@@ -42,13 +42,17 @@ async def health() -> HealthResponse:
     signal_store_size = await get_signal_store_size()
     last_snapshot_success_at = await get_value("stats:last_snapshot_success_at")
     last_gitcoin_success_at = await get_value("stats:last_gitcoin_success_at")
+    last_farcaster_success_at = await get_value("stats:last_farcaster_success_at")
     snapshot_data_stale = _is_stale(last_snapshot_success_at, settings.source_stale_hours)
     gitcoin_data_stale = _is_stale(last_gitcoin_success_at, settings.source_stale_hours)
+    farcaster_data_stale = _is_stale(last_farcaster_success_at, settings.source_stale_hours)
     stale_source_warnings = []
     if snapshot_data_stale:
         stale_source_warnings.append("snapshot_data_stale")
     if gitcoin_data_stale:
         stale_source_warnings.append("gitcoin_data_stale")
+    if farcaster_data_stale:
+        stale_source_warnings.append("farcaster_data_stale")
     current_redis_status = await redis_status()
     current_rate_limit_backend = await rate_limit_backend_status(settings)
     degraded_reasons: list[str] = []
@@ -91,10 +95,16 @@ async def health() -> HealthResponse:
         last_poll_time=await get_value("stats:last_poll_time"),
         next_poll_time=scheduler_status["next_poll_time"],
         scheduler_running=scheduler_status["scheduler_running"],
+        last_snapshot_checked_at=await get_value("stats:last_snapshot_checked_at"),
         total_signals_generated=await get_counter("stats:signals_generated"),
         high_severity_signals=await get_counter("stats:signals_high_severity"),
         ignored_events_count=await get_counter("stats:signals_ignored"),
         escalated_events_count=await get_counter("stats:signals_escalated"),
+        total_social_events_generated=await get_counter("stats:social_events_generated"),
+        momentum_signals_generated=await get_counter("stats:momentum_signals_generated"),
+        distributed_signals_count=await get_counter("stats:signals_distributed"),
+        distribution_skips_count=await get_counter("stats:distribution_skips"),
+        distribution_cooldown_suppressions=await get_counter("stats:distribution_cooldown_suppressions"),
         signals_in_store=signal_store_size,
         signals_in_feed=signal_store_size,
         scoring_engine_health=await get_value("stats:scoring_engine_health") or "unknown",
@@ -114,8 +124,12 @@ async def health() -> HealthResponse:
         last_gitcoin_success_at=last_gitcoin_success_at,
         last_gitcoin_non_empty_at=await get_value("stats:last_gitcoin_non_empty_at"),
         last_gitcoin_failure_at=await get_value("stats:last_gitcoin_failure_at"),
+        last_farcaster_success_at=last_farcaster_success_at,
+        last_farcaster_non_empty_at=await get_value("stats:last_farcaster_non_empty_at"),
+        last_farcaster_failure_at=await get_value("stats:last_farcaster_failure_at"),
         snapshot_data_stale=snapshot_data_stale,
         gitcoin_data_stale=gitcoin_data_stale,
+        farcaster_data_stale=farcaster_data_stale,
         stale_source_warnings=stale_source_warnings,
     )
 

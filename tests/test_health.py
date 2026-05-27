@@ -37,6 +37,7 @@ async def test_health_reports_source_freshness_and_staleness():
     now = datetime.now(UTC)
     await cache.set_value("stats:last_snapshot_success_at", (now - timedelta(hours=25)).isoformat())
     await cache.set_value("stats:last_gitcoin_success_at", now.isoformat())
+    await cache.set_value("stats:last_farcaster_success_at", now.isoformat())
     await cache.set_value("stats:last_poll_time", now.isoformat())
 
     response = await health()
@@ -44,4 +45,6 @@ async def test_health_reports_source_freshness_and_staleness():
     assert response.last_poll_time == now.isoformat()
     assert response.snapshot_data_stale is True
     assert response.gitcoin_data_stale is False
+    assert response.farcaster_data_stale is False
     assert "snapshot_data_stale" in response.stale_source_warnings
+    assert "farcaster_data_stale" not in response.stale_source_warnings

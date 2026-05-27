@@ -25,6 +25,18 @@ export function getFeed(category: FeedCategory): Promise<SignalFeedResponse> {
     return requestJson<SignalFeedResponse>('/api/signals?limit=10')
   }
 
+  if (category === 'social') {
+    return requestJson<SignalFeedResponse>('/api/social', {
+      method: 'POST'
+    }).catch(async (error) => {
+      if (error instanceof Error && error.message.startsWith('402 ')) {
+        const publicFeed = await requestJson<SignalFeedResponse>('/api/signals?limit=50')
+        return filterPublicFeed(publicFeed, category)
+      }
+      throw error
+    })
+  }
+
   return requestJson<SignalFeedResponse>(`/api/${category}`, {
     method: 'POST'
   }).catch(async (error) => {
@@ -72,6 +84,10 @@ function signalMatchesCategory(signal: Signal, category: Exclude<FeedCategory, '
 
   if (category === 'governance') {
     return source === 'snapshot' || ['governance', 'proposal', 'vote', 'quorum', 'snapshot', 'dao'].some((term) => haystack.includes(term))
+  }
+
+  if (category === 'social') {
+    return source === 'farcaster' || eventType.includes('social')
   }
 
   return (

@@ -35,8 +35,11 @@ export function SystemStatus({ health, loading, error }: SystemStatusProps) {
         <StatusTile label="Redis" value={health?.redis_status || 'Unknown'} good={health?.redis_status === 'connected'} />
         <StatusTile label="Scoring engine" value={health?.scoring_engine_health || 'Unknown'} good={health?.scoring_engine_health === 'healthy'} />
         <StatusTile label="Signals in feed" value={health?.signals_in_feed ?? 0} />
+        <StatusTile label="Social events" value={health?.total_social_events_generated ?? 0} />
+        <StatusTile label="Distributed" value={health?.distributed_signals_count ?? 0} good={health?.distributed_signals_count ? true : undefined} />
         <StatusTile label="Gemini calls today" value={`${health?.gemini_calls_today ?? 0}/${health?.gemini_daily_cap ?? 50}`} />
         <StatusTile label="Avg enrichment" value={formatLatency(health?.average_gemini_enrichment_latency_ms)} />
+        <StatusTile label="Farcaster freshness" value={health?.last_farcaster_success_at ? 'Fresh' : 'Missing'} good={Boolean(health?.last_farcaster_success_at)} />
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
@@ -53,6 +56,13 @@ export function SystemStatus({ health, loading, error }: SystemStatusProps) {
           success={health?.last_gitcoin_success_at}
           nonEmpty={health?.last_gitcoin_non_empty_at}
           failure={health?.last_gitcoin_failure_at}
+        />
+        <SourcePanel
+          name="Farcaster"
+          stale={Boolean(health?.farcaster_data_stale)}
+          success={health?.last_farcaster_success_at}
+          nonEmpty={health?.last_farcaster_non_empty_at}
+          failure={health?.last_farcaster_failure_at}
         />
       </div>
 

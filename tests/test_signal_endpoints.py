@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import cache
 from routers import signals as signals_router
+from routers import social as social_router
 from signals import store
 
 
@@ -61,3 +62,11 @@ async def test_public_signals_endpoint_handles_quiet_period():
     assert response.quiet_period is True
     assert response.signals == []
     assert response.message == "No high-priority ecosystem signals detected."
+
+
+async def test_social_signals_endpoint_returns_quiet_period_when_empty():
+    response = await social_router.social_signal_feed()
+
+    assert response.category == "social"
+    assert response.quiet_period is True
+    assert response.signals == []

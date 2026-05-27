@@ -1,6 +1,6 @@
 # Base Navigator
 
-Base Navigator is a FastAPI service that monitors Base ecosystem governance and grants activity, scores meaningful changes, selectively enriches high-value signals, and serves a precomputed intelligence feed for builders, agents, and internal automation.
+Base Navigator is a FastAPI service that monitors Base ecosystem governance, grants activity, and Farcaster social momentum, scores meaningful changes deterministically, selectively enriches high-value signals, and serves a precomputed intelligence feed for builders, agents, and internal automation.
 
 The current product is intentionally small: a scheduled signal pipeline, feed-oriented APIs, one public health endpoint, Redis-backed operational memory with in-memory fallback, selective Gemini enrichment, structured request logging, rate limiting, Docker deployment files, and an optional Farcaster daily post script.
 
@@ -8,8 +8,10 @@ The current product is intentionally small: a scheduled signal pipeline, feed-or
 
 - Tracks active governance proposals from configured Snapshot spaces.
 - Tracks Base ecosystem grant opportunities from Gitcoin and Base Batches.
+- Tracks high-signal Farcaster activity from Neynar without ingesting the full social firehose.
 - Scores meaningful changes deterministically before any LLM enrichment.
 - Uses Gemini only for high-value pre-scored signal enrichment.
+- Publishes only critical or selected high-value signals back through a controlled distribution layer.
 - Serves precomputed signals from Redis when available, or process memory when Redis is unavailable.
 - Protects intelligence endpoints with optional x402 payment middleware.
 - Exposes health, degraded-mode, request-count, and estimated revenue information.
@@ -96,6 +98,14 @@ Returns grants/funding-related precomputed signals:
 }
 ```
 
+### Social Intelligence
+
+```bash
+curl -X POST http://localhost:8000/api/social
+```
+
+Returns Farcaster-derived ecosystem attention signals, including governance acceleration, launch traction, and funding visibility.
+
 ## Architecture
 
 ```text
@@ -135,8 +145,11 @@ Background scheduler
   |
   +-- upstream fetchers
   +-- diff detection
+  +-- Farcaster channel/search ingestion via Neynar
+  +-- deterministic social normalization
   +-- deterministic scoring
   +-- selective Gemini enrichment
+  +-- high-signal distribution control
   +-- Redis signal feed write
 ```
 
@@ -155,10 +168,25 @@ Background scheduler
 ├── routers/
 │   ├── governance.py        # POST /api/governance
 │   ├── grants.py            # POST /api/grants
-│   └── health.py            # GET /health
+│   ├── health.py            # GET /health
+│   ├── signals.py           # GET /api/signals and premium feed
+│   └── social.py            # POST /api/social for Farcaster signals
 ├── fetchers/
 │   ├── snapshot.py          # Snapshot GraphQL fetcher
-│   └── gitcoin.py           # Gitcoin GraphQL and Base Batches fetchers
+│   ├── gitcoin.py           # Gitcoin GraphQL and Base Batches fetchers
+│   └── neynar.py            # Farcaster channel/search fetcher via Neynar
+├── signals/
+│   ├── reasoner.py          # Selective Gemini enrichment and fallback logic
+│   ├── scorer.py            # Deterministic scoring rules and severity mapping
+│   ├── store.py             # Redis-backed signal storage and cooldown memory
+│   ├── feed.py              # Public signal feed shaping and filtering
+│   ├── social.py            # Farcaster normalization and momentum event extraction
+│   └── distribution.py      # Controlled signal publication and cooldowns
+├── frontend/                # Next.js intelligence terminal UI
+│   ├── app/                 # App Router entry, layout, and shell page
+│   ├── components/          # Feed, metric, status, and signal cards
+│   ├── lib/                 # API client and formatting helpers
+│   └── types/               # Shared TypeScript response types
 ├── synthesis/
 │   ├── common.py            # Gemini JSON helper
 │   ├── governance.py        # Governance prompt and fallback
@@ -224,6 +252,12 @@ BASE_BATCHES_URL=https://basebatches.xyz
 
 NEYNAR_API_KEY=
 FARCASTER_SIGNER_UUID=
+NEYNAR_API_BASE_URL=https://api.neynar.com
+FARCASTER_CHANNEL_IDS=base
+FARCASTER_SEARCH_QUERIES=Base,Base DAO,Base governance,Base grant,Base launch
+FARCASTER_POLL_LIMIT=25
+FARCASTER_LOOKBACK_MINUTES=240
+FARCASTER_DISTRIBUTION_COOLDOWN_SECONDS=21600
 PUBLIC_BASE_URL=http://localhost:8000
 ```
 

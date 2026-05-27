@@ -13,6 +13,7 @@ const tabs: Array<{ id: Tab; label: string; eyebrow: string; title: string }> = 
   { id: 'signals', label: 'Signals', eyebrow: 'Global feed', title: 'Priority ecosystem signals' },
   { id: 'governance', label: 'Governance', eyebrow: 'Governance watch', title: 'Governance shifts' },
   { id: 'grants', label: 'Grants', eyebrow: 'Funding watch', title: 'Grants and opportunities' },
+  { id: 'social', label: 'Social', eyebrow: 'Farcaster watch', title: 'Ecosystem attention movement' },
   { id: 'status', label: 'Status', eyebrow: 'System', title: 'System status' }
 ]
 
@@ -27,10 +28,11 @@ export function Shell() {
   async function load() {
     setLoading(true)
     const nextErrors: Partial<Record<Tab, string>> = {}
-    const [signals, governance, grants, status] = await Promise.allSettled([
+    const [signals, governance, grants, social, status] = await Promise.allSettled([
       getFeed('signals'),
       getFeed('governance'),
       getFeed('grants'),
+      getFeed('social'),
       getHealth()
     ])
 
@@ -41,6 +43,8 @@ export function Shell() {
     else nextErrors.governance = governance.reason instanceof Error ? governance.reason.message : 'Unable to load governance feed.'
     if (grants.status === 'fulfilled') nextFeeds.grants = grants.value
     else nextErrors.grants = grants.reason instanceof Error ? grants.reason.message : 'Unable to load grants feed.'
+    if (social.status === 'fulfilled') nextFeeds.social = social.value
+    else nextErrors.social = social.reason instanceof Error ? social.reason.message : 'Unable to load social feed.'
     if (status.status === 'fulfilled') setHealth(status.value)
     else nextErrors.status = status.reason instanceof Error ? status.reason.message : 'Unable to load system health.'
 
@@ -124,7 +128,7 @@ export function Shell() {
             </div>
 
             <aside className="space-y-3">
-              <StatusRail health={health} feed={feeds.signals} />
+              <StatusRail health={health} feed={feeds.signals} socialFeed={feeds.social} />
             </aside>
           </div>
         </section>
@@ -133,7 +137,7 @@ export function Shell() {
   )
 }
 
-function StatusRail({ health, feed }: { health?: HealthResponse; feed?: SignalFeedResponse }) {
+function StatusRail({ health, feed, socialFeed }: { health?: HealthResponse; feed?: SignalFeedResponse; socialFeed?: SignalFeedResponse }) {
   const warnings = health?.stale_source_warnings || []
   return (
     <>
@@ -147,12 +151,22 @@ function StatusRail({ health, feed }: { health?: HealthResponse; feed?: SignalFe
       </section>
 
       <section className="rounded-lg border border-white/10 bg-surface-900/72 p-4">
+        <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-500">Social momentum</div>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <RailNumber label="Social" value={socialFeed?.signals_count ?? 0} tone="text-base-400" />
+          <RailNumber label="Momentum" value={health?.momentum_signals_generated ?? 0} tone="text-cyan-200" />
+          <RailNumber label="Published" value={health?.distributed_signals_count ?? 0} tone="text-emerald-200" />
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-white/10 bg-surface-900/72 p-4">
         <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-500">Pipeline</div>
         <div className="mt-4 space-y-3 text-sm">
           <RailRow label="Scheduler" value={health?.scheduler_running ? 'Running' : 'Offline'} tone={health?.scheduler_running ? 'text-emerald-200' : 'text-rose-200'} />
           <RailRow label="Redis" value={health?.redis_status || 'Unknown'} tone={health?.redis_status === 'connected' ? 'text-emerald-200' : 'text-amber-200'} />
           <RailRow label="Gemini used" value={`${health?.gemini_calls_today ?? 0}/${health?.gemini_daily_cap ?? 50}`} />
           <RailRow label="Escalated" value={health?.escalated_events_count ?? 0} />
+          <RailRow label="Farcaster" value={health?.last_farcaster_success_at ? 'Fresh' : 'Waiting'} tone={health?.last_farcaster_success_at ? 'text-emerald-200' : 'text-amber-200'} />
         </div>
       </section>
 

@@ -34,12 +34,14 @@ export type Signal = {
   llm_enrichment?: LlmEnrichment | null
   score_components?: unknown[]
   raw_event?: unknown
+  published_to_farcaster?: boolean
+  distribution?: Record<string, unknown> | null
 }
 
 export type SignalFeedResponse = {
   source: 'precomputed' | 'live_fallback'
   generated_at: string
-  category: 'all' | 'governance' | 'grants'
+  category: 'all' | 'governance' | 'grants' | 'social'
   premium: boolean
   signals_count: number
   quiet_period: boolean
@@ -68,10 +70,16 @@ export type HealthResponse = {
   last_poll_time?: string | null
   next_poll_time?: string | null
   scheduler_running?: boolean
+  last_snapshot_checked_at?: string | null
   total_signals_generated?: number
   high_severity_signals?: number
   ignored_events_count?: number
   escalated_events_count?: number
+  total_social_events_generated?: number
+  momentum_signals_generated?: number
+  distributed_signals_count?: number
+  distribution_skips_count?: number
+  distribution_cooldown_suppressions?: number
   signals_in_store?: number
   signals_in_feed?: number
   scoring_engine_health?: string
@@ -91,9 +99,13 @@ export type HealthResponse = {
   last_gitcoin_success_at?: string | null
   last_gitcoin_non_empty_at?: string | null
   last_gitcoin_failure_at?: string | null
+  last_farcaster_success_at?: string | null
+  last_farcaster_non_empty_at?: string | null
+  last_farcaster_failure_at?: string | null
   snapshot_data_stale?: boolean
   gitcoin_data_stale?: boolean
+  farcaster_data_stale?: boolean
   stale_source_warnings?: string[]
 }
 
-export type FeedCategory = 'signals' | 'governance' | 'grants'
+export type FeedCategory = 'signals' | 'governance' | 'grants' | 'social'

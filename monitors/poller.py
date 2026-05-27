@@ -10,16 +10,21 @@ from datetime import UTC, datetime
 from typing import Any
 
 from cache import get_value, set_value
+from config import get_settings
 from fetchers.gitcoin import fetch_active_grants, gitcoin_fetch_ok
+from fetchers.neynar import fetch_social_casts, neynar_fetch_ok
 from fetchers.snapshot import fetch_active_proposals, snapshot_fetch_ok
+from signals.distribution import publish_signal
 from signals.reasoner import enrich_signal
 from signals.scorer import SIGNAL_THRESHOLD, build_signal
+from signals.social import normalize_social_casts
 from signals.store import increment_stat, save_signal_with_result, signal_in_cooldown
 
 logger = logging.getLogger(__name__)
 
 SNAPSHOT_STATE_KEY = "state:snapshot:latest"
 GITCOIN_STATE_KEY = "state:gitcoin:latest"
+FARCASTER_STATE_KEY = "state:farcaster:latest"
 LAST_POLL_TIME_KEY = "stats:last_poll_time"
 POLL_INTERVAL_MINUTES = 10
 POLL_JOB_ID = "base-navigator-poller"
@@ -30,8 +35,10 @@ async def poll_ecosystem() -> list[dict[str, Any]]:
     """Fetch ecosystem state, persist it, and return prioritized signals."""
     poll_started_at = datetime.now(UTC)
     previous_poll_time = _parse_datetime(await get_value(LAST_POLL_TIME_KEY))
+    settings = get_settings()
 
     proposals, grants = await asyncio.gather(fetch_active_proposals(), fetch_active_grants())
+    farcaster_casts = await fetch_social_casts(limit=settings.farcaster_poll_limit, after=previous_poll_time)
     await _record_source_status(
         "snapshot",
         success=snapshot_fetch_ok(),
@@ -44,8 +51,15 @@ async def poll_ecosystem() -> list[dict[str, Any]]:
         non_empty_count=sum(1 for grant in grants if grant.get("source") == "gitcoin"),
         checked_at=poll_started_at,
     )
+    await _record_source_status(
+        "farcaster",
+        success=neynar_fetch_ok(),
+        non_empty_count=len(farcaster_casts),
+        checked_at=poll_started_at,
+    )
     previous_proposals = _as_list(await get_value(SNAPSHOT_STATE_KEY))
     previous_grants = _as_list(await get_value(GITCOIN_STATE_KEY))
+    previous_farcaster_casts = _as_list(await get_value(FARCASTER_STATE_KEY))
 
     snapshot_events = diff_snapshot_proposals(
         previous_proposals,
@@ -59,10 +73,16 @@ async def poll_ecosystem() -> list[dict[str, Any]]:
         now=poll_started_at,
         previous_poll_time=previous_poll_time,
     )
-    events = [*snapshot_events, *gitcoin_events]
+    social_events = await normalize_social_casts(
+        farcaster_casts,
+        now=poll_started_at,
+        window_minutes=settings.farcaster_lookback_minutes,
+    )
+    events = [*snapshot_events, *gitcoin_events, *social_events]
 
     await set_value(SNAPSHOT_STATE_KEY, proposals)
     await set_value(GITCOIN_STATE_KEY, grants)
+    await set_value(FARCASTER_STATE_KEY, farcaster_casts)
     await set_value(LAST_POLL_TIME_KEY, poll_started_at.isoformat())
     signals = await process_diff_events(events, now=poll_started_at)
 
@@ -73,6 +93,8 @@ async def poll_ecosystem() -> list[dict[str, Any]]:
             "Ecosystem quiet period.",
             extra={"proposals_found": len(proposals), "grants_found": len(grants)},
         )
+    if not farcaster_casts:
+        logger.info("Farcaster quiet period.", extra={"casts_found": 0})
 
     logger.info(
         "Poll completed.",
@@ -80,6 +102,8 @@ async def poll_ecosystem() -> list[dict[str, Any]]:
             "poll_timestamp": poll_started_at.isoformat(),
             "proposals_found": len(proposals),
             "grants_found": len(grants),
+            "farcaster_casts_found": len(farcaster_casts),
+            "previous_farcaster_casts": len(previous_farcaster_casts),
             "diffs_detected": len(events),
             "signals_generated": len(signals),
         },
@@ -167,6 +191,16 @@ async def process_diff_events(
                 },
             )
             continue
+
+        if signal.source == "farcaster":
+            await increment_stat("social_events_generated")
+            if signal.event_type.startswith("social_"):
+                await increment_stat("momentum_signals_generated")
+
+        distribution_result = await publish_signal(payload, now=now)
+        if distribution_result.published and isinstance(distribution_result.payload, dict):
+            payload["distribution"] = distribution_result.payload
+            payload["published_to_farcaster"] = distribution_result.external_posted
 
         generated_signals.append(payload)
         severity_counts[signal.severity] += 1

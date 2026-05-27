@@ -9,7 +9,7 @@ from signals.store import get_signals
 
 logger = logging.getLogger(__name__)
 
-SignalCategory = Literal["all", "governance", "grants"]
+SignalCategory = Literal["all", "governance", "grants", "social"]
 QUIET_PERIOD_MESSAGE = "No high-priority ecosystem signals detected."
 
 _GOVERNANCE_KEYWORDS = {
@@ -85,6 +85,9 @@ def signal_matches_category(signal: dict[str, Any], category: SignalCategory) ->
 
     if category == "governance":
         return source == "snapshot" or any(keyword in haystack for keyword in _GOVERNANCE_KEYWORDS)
+
+    if category == "social":
+        return source == "farcaster" or raw_source == "farcaster" or "social" in event_type
 
     return (
         source in {"gitcoin", "base_batches"}

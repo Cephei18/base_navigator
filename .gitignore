@@ -65,3 +65,38 @@ dist/
 build/
 *.egg-info/
 .DS_Store
+
+# Sensitive files: keys, certs, credentials, and local state
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.jks
+
+*.secret
+secret-*.json
+credentials.json
+.env.local
+.env.*.local
+.netrc
+credentials
+.aws/credentials
+.aws/config
+.azure/
+terraform.tfvars
+*.tfstate
+*.tfstate.*
+.terraform/
+id_rsa
+id_ed25519
+id_rsa.pub
+
+# Local databases and caches
+*.sqlite3
+*.db
+*.sqlite
+
+# Editor and workspace files
+*.code-workspace
+.history

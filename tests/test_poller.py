@@ -163,3 +163,87 @@ async def test_process_diff_events_suppresses_duplicates_before_enrichment(monke
 
     assert generated == []
     assert await cache.get_counter("stats:signals_duplicates_suppressed") == 1
+
+
+async def test_poll_ecosystem_ingests_social_signals(monkeypatch):
+    proposal = {
+        "id": "proposal-1",
+        "title": "Fund Base public goods",
+        "body": "Allocate $250k to builders.",
+        "space": {"id": "base.eth", "name": "Base DAO"},
+        "end": int((datetime.now(UTC) + timedelta(days=2)).timestamp()),
+        "scores": [75, 25],
+        "scores_total": 100,
+        "votes": 10,
+        "quorum": 150,
+    }
+    social_cast = {
+        "hash": "cast-social-1",
+        "text": "Base governance vote is accelerating and builders are paying attention.",
+        "timestamp": datetime.now(UTC).isoformat(),
+        "author": {
+            "fid": 77,
+            "username": "ecosystemwatch",
+            "display_name": "Ecosystem Watch",
+            "follower_count": 2500,
+            "score": 0.93,
+            "verified_accounts": [{"platform": "x", "username": "ecosystemwatch"}],
+        },
+        "reactions": {"likes_count": 22, "recasts_count": 6},
+        "replies": {"count": 5},
+        "channel": {"id": "base", "name": "Base"},
+    }
+    social_event = {
+        "event_id": "social-1",
+        "event_type": "social_governance_momentum",
+        "source": "farcaster",
+        "protocol": "Base",
+        "title": "Base governance discussion accelerating",
+        "source_url": "https://warpcast.com/~/channel/base",
+        "severity": "high",
+        "urgency_score": 76,
+        "importance_score": 34,
+        "reasons": ["mention velocity is above 3 per window"],
+        "score_components": [{"rule": "mention_velocity_gt_3", "points": 18}],
+        "requires_llm_reasoning": True,
+        "notify_users": False,
+        "store_as_major_signal": True,
+        "dashboard_worthy": True,
+        "escalation_recommendation": "priority_digest",
+        "mention_velocity": 4.5,
+        "engagement_spike": 18.0,
+        "repeated_reference_count": 4,
+        "verified_actor_count": 1,
+        "governance_activity_score": 14.0,
+        "launch_momentum_score": 0.0,
+        "social_attention_score": 28.0,
+        "current": {"cast_count": 1, "unique_authors": 1},
+        "previous": None,
+    }
+
+    async def fake_fetch_active_proposals():
+        return [proposal]
+
+    async def fake_fetch_active_grants():
+        return []
+
+    async def fake_fetch_social_casts(*args, **kwargs):
+        return [social_cast]
+
+    async def fake_normalize_social_casts(*args, **kwargs):
+        return [social_event]
+
+    monkeypatch.setattr(poller, "fetch_active_proposals", fake_fetch_active_proposals)
+    monkeypatch.setattr(poller, "fetch_active_grants", fake_fetch_active_grants)
+    monkeypatch.setattr(poller, "fetch_social_casts", fake_fetch_social_casts)
+    monkeypatch.setattr(poller, "normalize_social_casts", fake_normalize_social_casts)
+    monkeypatch.setattr(poller, "snapshot_fetch_ok", lambda: True)
+    monkeypatch.setattr(poller, "gitcoin_fetch_ok", lambda: True)
+    monkeypatch.setattr(poller, "neynar_fetch_ok", lambda: True)
+
+    signals = await poller.poll_ecosystem()
+
+    assert any(signal["source"] == "farcaster" for signal in signals)
+    assert await cache.get_value("stats:last_farcaster_success_at") is not None
+    assert await cache.get_counter("stats:social_events_generated") >= 1
+    assert await cache.get_counter("stats:momentum_signals_generated") >= 1

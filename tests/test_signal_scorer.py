@@ -88,3 +88,26 @@ def test_base_native_grant_relevance_is_scored_but_not_over_escalated():
     assert signal.severity == "low"
     assert signal.requires_llm_reasoning is False
     assert "Base-native ecosystem relevance" in signal.reasons
+
+
+def test_social_momentum_event_crosses_threshold_deterministically():
+    signal = build_signal(
+        _event(
+            event_id="social-1",
+            event_type="social_governance_momentum",
+            source="farcaster",
+            protocol="Base",
+            title="Base governance discussion accelerating",
+            mention_velocity=4.5,
+            engagement_spike=26,
+            repeated_reference_count=4,
+            verified_actor_count=2,
+            governance_activity_score=14,
+            social_attention_score=22,
+        )
+    )
+
+    assert signal.urgency_score >= 50
+    assert signal.severity in {"high", "critical"}
+    assert signal.requires_llm_reasoning is True
+    assert any(component.rule.startswith("mention_velocity") for component in signal.score_components)

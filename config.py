@@ -37,6 +37,19 @@ def _csv_env(name: str, default: list[str]) -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
+def _int_csv_env(name: str, default: list[int]) -> list[int]:
+    raw = os.getenv(name)
+    if not raw:
+        return default
+    values: list[int] = []
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        values.append(int(item))
+    return values
+
+
 def _environment() -> str:
     return (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "development").strip().lower()
 
@@ -84,6 +97,13 @@ class Settings:
     base_batches_url: str
     neynar_api_key: str | None
     farcaster_signer_uuid: str | None
+    neynar_api_base_url: str
+    farcaster_channel_ids: list[str]
+    farcaster_author_fids: list[int]
+    farcaster_search_queries: list[str]
+    farcaster_poll_limit: int
+    farcaster_lookback_minutes: int
+    farcaster_distribution_cooldown_seconds: int
     public_base_url: str
 
 
@@ -136,5 +156,18 @@ def get_settings() -> Settings:
         base_batches_url=os.getenv("BASE_BATCHES_URL", "https://basebatches.xyz"),
         neynar_api_key=os.getenv("NEYNAR_API_KEY") or None,
         farcaster_signer_uuid=os.getenv("FARCASTER_SIGNER_UUID") or None,
+        neynar_api_base_url=os.getenv("NEYNAR_API_BASE_URL", "https://api.neynar.com"),
+        farcaster_channel_ids=_csv_env("FARCASTER_CHANNEL_IDS", ["base"]),
+        farcaster_author_fids=_int_csv_env("FARCASTER_AUTHOR_FIDS", []),
+        farcaster_search_queries=_csv_env(
+            "FARCASTER_SEARCH_QUERIES",
+            ["Base", "Base DAO", "Base governance", "Base grant", "Base launch"],
+        ),
+        farcaster_poll_limit=_int_env("FARCASTER_POLL_LIMIT", 25),
+        farcaster_lookback_minutes=_int_env("FARCASTER_LOOKBACK_MINUTES", 240),
+        farcaster_distribution_cooldown_seconds=_int_env(
+            "FARCASTER_DISTRIBUTION_COOLDOWN_SECONDS",
+            6 * 60 * 60,
+        ),
         public_base_url=os.getenv("PUBLIC_BASE_URL", "http://localhost:8000").rstrip("/"),
     )

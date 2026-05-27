@@ -46,7 +46,7 @@ class GrantsResponse(BaseModel):
 class SignalFeedResponse(BaseModel):
     source: Literal["precomputed", "live_fallback"]
     generated_at: str
-    category: Literal["all", "governance", "grants"] = "all"
+    category: Literal["all", "governance", "grants", "social"] = "all"
     premium: bool = False
     signals_count: int
     quiet_period: bool
@@ -84,10 +84,16 @@ class HealthResponse(BaseModel):
     last_poll_time: str | None = None
     next_poll_time: str | None = None
     scheduler_running: bool = False
+    last_snapshot_checked_at: str | None = None
     total_signals_generated: int = 0
     high_severity_signals: int = 0
     ignored_events_count: int = 0
     escalated_events_count: int = 0
+    total_social_events_generated: int = 0
+    momentum_signals_generated: int = 0
+    distributed_signals_count: int = 0
+    distribution_skips_count: int = 0
+    distribution_cooldown_suppressions: int = 0
     signals_in_store: int = 0
     signals_in_feed: int = 0
     scoring_engine_health: str = "unknown"
@@ -107,6 +113,10 @@ class HealthResponse(BaseModel):
     last_gitcoin_success_at: str | None = None
     last_gitcoin_non_empty_at: str | None = None
     last_gitcoin_failure_at: str | None = None
+    last_farcaster_success_at: str | None = None
+    last_farcaster_non_empty_at: str | None = None
+    last_farcaster_failure_at: str | None = None
     snapshot_data_stale: bool = False
     gitcoin_data_stale: bool = False
+    farcaster_data_stale: bool = False
     stale_source_warnings: list[str] = Field(default_factory=list)

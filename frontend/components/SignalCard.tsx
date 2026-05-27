@@ -34,6 +34,11 @@ export function SignalCard({ signal }: SignalCardProps) {
             <span className="font-mono text-xs uppercase tracking-[0.16em] text-ink-300">{labelize(severity)}</span>
             <span className="font-mono text-xs text-ink-500">/</span>
             <span className="font-mono text-xs uppercase tracking-[0.12em] text-ink-300">{labelize(signal.source)}</span>
+            {signal.published_to_farcaster ? (
+              <span className="rounded border border-cyan-200/20 bg-cyan-950/20 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-cyan-100">
+                Published
+              </span>
+            ) : null}
           </div>
           <h3 className="mt-3 text-lg font-semibold leading-snug text-ink-50">{title}</h3>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-300">
