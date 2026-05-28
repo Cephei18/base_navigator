@@ -1,0 +1,16 @@
+[
+  {
+    "hash": "localcast1",
+    "cast_hash": "localcast1",
+    "text": "Community discussion: working groups forming for Term 7",
+    "author": {"fid": 12345, "display_name": "builder1"},
+    "ts": "2026-05-27T20:46:30.584304+00:00"
+  },
+  {
+    "hash": "localcast2",
+    "cast_hash": "localcast2",
+    "text": "Reminder: grant application window opens June 1",
+    "author": {"fid": 67890, "display_name": "grantbot"},
+    "ts": "2026-05-27T20:50:00.000000+00:00"
+  }
+]

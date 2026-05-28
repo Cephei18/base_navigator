@@ -37,7 +37,7 @@ export function FeedView({ title, eyebrow, feed, loading, error }: FeedViewProps
   }
 
   if (!feed || feed.quiet_period || feed.signals.length === 0) {
-    return <QuietState message={feed?.message} detail={`${labelize(feed?.category || 'all')} feed is reporting no major signals.`} />
+    return <QuietState message={feed?.message} detail={`${labelize(feed?.category || 'all')} feed is quiet for now. No major ecosystem movement is surfacing.`} />
   }
 
   return (

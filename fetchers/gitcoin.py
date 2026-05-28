@@ -5,7 +5,6 @@ import logging
 from typing import Any
 
 import httpx
-from bs4 import BeautifulSoup
 
 from config import get_settings
 
@@ -97,6 +96,21 @@ async def _fetch_gitcoin_rounds(url: str) -> list[dict[str, Any]]:
                 _last_gitcoin_fetch_ok = True
                 logger.info("Gitcoin fetch complete.", extra={"round_count": len(parsed)})
                 return parsed
+    # If remote fetch failed, attempt to serve a local sample fallback to keep UI usable in offline/dev environments
+    try:
+        import json
+        from pathlib import Path
+
+        fallback_path = Path(__file__).parent / 'sample_gitcoin_fallback.json'
+        if fallback_path.exists():
+            with open(fallback_path, 'r', encoding='utf-8') as fh:
+                parsed = json.load(fh)
+                if isinstance(parsed, list):
+                    logger.warning("Using local Gitcoin fallback dataset.")
+                    return parsed
+    except Exception:
+        logger.debug("No local Gitcoin fallback available or failed to load.")
+
     return []
 
 
@@ -115,15 +129,21 @@ async def _fetch_base_batches(url: str) -> list[dict[str, Any]]:
             extra={"error": f"{type(exc).__name__}: {exc}"},
         )
         return []
+    try:
+        from bs4 import BeautifulSoup
 
-    soup = BeautifulSoup(response.text, "html.parser")
-    title = soup.title.get_text(strip=True) if soup.title else "Base Batches"
-    description_tag = soup.find("meta", attrs={"name": "description"})
-    description = (
-        description_tag.get("content", "").strip()
-        if description_tag and description_tag.get("content")
-        else "Base ecosystem builder program."
-    )
+        soup = BeautifulSoup(response.text, "html.parser")
+        title = soup.title.get_text(strip=True) if soup.title else "Base Batches"
+        description_tag = soup.find("meta", attrs={"name": "description"})
+        description = (
+            description_tag.get("content", "").strip()
+            if description_tag and description_tag.get("content")
+            else "Base ecosystem builder program."
+        )
+    except Exception:
+        # bs4 may not be installed in all environments; fall back to simple parsing
+        title = "Base Batches"
+        description = "Base ecosystem builder program."
     logger.info("Base Batches fetch complete.")
     return [
         {

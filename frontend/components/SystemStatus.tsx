@@ -1,5 +1,5 @@
 import type { HealthResponse } from '@/types/api'
-import { formatDateTime, formatLatency } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 
 type SystemStatusProps = {
   health?: HealthResponse
@@ -22,24 +22,22 @@ export function SystemStatus({ health, loading, error }: SystemStatusProps) {
   }
 
   const staleWarnings = health?.stale_source_warnings || []
+  const posture = health?.degraded_mode ? 'Needs attention' : health?.status || 'Monitoring'
 
   return (
     <section className="space-y-5">
       <div className="border-b border-white/10 pb-5">
-        <div className="font-mono text-xs uppercase tracking-[0.18em] text-base-400">Operational status</div>
-        <h2 className="mt-3 text-2xl font-semibold text-ink-50">System status</h2>
+        <div className="font-mono text-xs uppercase tracking-[0.18em] text-base-400">Supporting context</div>
+        <h2 className="mt-3 text-2xl font-semibold text-ink-50">System posture</h2>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <StatusTile label="Scheduler" value={health?.scheduler_running ? 'Running' : 'Offline'} good={health?.scheduler_running} />
-        <StatusTile label="Redis" value={health?.redis_status || 'Unknown'} good={health?.redis_status === 'connected'} />
-        <StatusTile label="Scoring engine" value={health?.scoring_engine_health || 'Unknown'} good={health?.scoring_engine_health === 'healthy'} />
-        <StatusTile label="Signals in feed" value={health?.signals_in_feed ?? 0} />
-        <StatusTile label="Social events" value={health?.total_social_events_generated ?? 0} />
-        <StatusTile label="Distributed" value={health?.distributed_signals_count ?? 0} good={health?.distributed_signals_count ? true : undefined} />
-        <StatusTile label="Gemini calls today" value={`${health?.gemini_calls_today ?? 0}/${health?.gemini_daily_cap ?? 50}`} />
-        <StatusTile label="Avg enrichment" value={formatLatency(health?.average_gemini_enrichment_latency_ms)} />
-        <StatusTile label="Farcaster freshness" value={health?.last_farcaster_success_at ? 'Fresh' : 'Missing'} good={Boolean(health?.last_farcaster_success_at)} />
+        <StatusTile label="Status" value={posture} good={!health?.degraded_mode} />
+        <StatusTile label="Signals surfaced" value={health?.signals_in_feed ?? 0} />
+        <StatusTile label="Last poll" value={formatDateTime(health?.last_poll_time)} />
+        <StatusTile label="Next poll" value={formatDateTime(health?.next_poll_time)} />
+        <StatusTile label="Data sources" value={staleWarnings.length ? `${staleWarnings.length} watch item${staleWarnings.length === 1 ? '' : 's'}` : 'All current'} good={!staleWarnings.length} />
+        <StatusTile label="Coverage" value={health?.signals_in_store ?? 0} />
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
@@ -67,7 +65,7 @@ export function SystemStatus({ health, loading, error }: SystemStatusProps) {
       </div>
 
       <div className="rounded-lg border border-white/10 bg-surface-900/72 p-5">
-        <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-500">Warnings</div>
+        <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-500">Source watch</div>
         {staleWarnings.length ? (
           <div className="mt-3 flex flex-wrap gap-2">
             {staleWarnings.map((warning) => (
@@ -77,7 +75,7 @@ export function SystemStatus({ health, loading, error }: SystemStatusProps) {
             ))}
           </div>
         ) : (
-          <p className="mt-3 text-sm text-emerald-200">No stale source warnings.</p>
+          <p className="mt-3 text-sm text-emerald-200">No source watch items.</p>
         )}
       </div>
     </section>

@@ -1,7 +1,8 @@
 import type { Signal } from '@/types/api'
-import { formatDateTime, formatScore, labelize } from '@/lib/format'
+import { formatDateTime, labelize } from '@/lib/format'
 import dynamic from 'next/dynamic'
-import { useState } from 'react'
+
+const enableTimeline = process.env.NEXT_PUBLIC_SHOW_TIMELINE === 'true'
 
 const Timeline = dynamic(() => import('./Timeline').then((m) => m.Timeline), { ssr: false })
 
@@ -24,7 +25,6 @@ const severityDotStyles: Record<string, string> = {
 }
 
 export function SignalCard({ signal }: SignalCardProps) {
-  const [showTimeline, setShowTimeline] = useState(false)
   const severity = String(signal.severity || 'low').toLowerCase()
   const enrichment = signal.llm_enrichment || undefined
   const title = signal.title || labelize(signal.event_type) || 'Untitled signal'
@@ -54,10 +54,6 @@ export function SignalCard({ signal }: SignalCardProps) {
             <time>{formatDateTime(signal.created_at)}</time>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
-          <ScorePill label="Urgency" value={formatScore(signal.urgency_score)} />
-          <ScorePill label="Importance" value={formatScore(signal.importance_score)} />
-        </div>
       </div>
 
       {summary ? (
@@ -81,29 +77,19 @@ export function SignalCard({ signal }: SignalCardProps) {
         </div>
       ) : null}
 
-      <div className="mt-4 flex items-center justify-between">
-        <div className="text-sm text-ink-300">{signal.event_id ? `ID: ${signal.event_id}` : null}</div>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setShowTimeline((s) => !s)} className="rounded px-3 py-1 text-sm border border-white/10 hover:bg-white/[0.02]">
-            {showTimeline ? 'Hide timeline' : 'View timeline'}
-          </button>
-        </div>
+      <div className="mt-4 flex items-center justify-end gap-3">
+        {signal.published_to_farcaster ? (
+          <span className="rounded border border-cyan-200/20 bg-cyan-950/20 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-cyan-100">
+            Shared
+          </span>
+        ) : null}
       </div>
 
-      {showTimeline && signal.event_id ? (
+      {enableTimeline && signal.event_id ? (
         <div className="mt-3 animate-fade-in">
           <Timeline eventId={signal.event_id} />
         </div>
       ) : null}
     </article>
-  )
-}
-
-function ScorePill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-[104px] rounded-md border border-white/10 bg-surface-950/70 px-3 py-2">
-      <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-500">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums text-ink-50">{value}</div>
-    </div>
   )
 }

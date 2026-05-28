@@ -1,0 +1,16 @@
+[
+  {
+    "source": "gitcoin",
+    "id": "local-sample-1",
+    "chainId": 8453,
+    "roundMetadata": "Local sample: Base Grants Round",
+    "applicationsStartTime": "2026-06-01T00:00:00Z",
+    "applicationsEndTime": "2026-06-30T23:59:59Z",
+    "donationsStartTime": null,
+    "donationsEndTime": null,
+    "matchingFundsAvailable": "100000",
+    "matchingCap": null,
+    "roundType": "grants",
+    "strategyName": "Base Grants Sample"
+  }
+]

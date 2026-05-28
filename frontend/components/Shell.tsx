@@ -7,9 +7,10 @@ import { FeedView } from './FeedView'
 import { MetricStrip } from './MetricStrip'
 import { SystemStatus } from './SystemStatus'
 import { OnboardingModal } from './OnboardingModal'
-import { DiagnosticsPanel } from './DiagnosticsPanel'
 
 type Tab = FeedCategory | 'status'
+
+const enableOnboarding = process.env.NEXT_PUBLIC_ENABLE_ONBOARDING === 'true'
 
 const tabs: Array<{ id: Tab; label: string; eyebrow: string; title: string }> = [
   { id: 'signals', label: 'Signals', eyebrow: 'Global feed', title: 'Priority ecosystem signals' },
@@ -26,8 +27,6 @@ export function Shell() {
   const [errors, setErrors] = useState<Partial<Record<Tab, string>>>({})
   const [loading, setLoading] = useState(true)
   const [lastRefresh, setLastRefresh] = useState<Date | undefined>()
-  const [showOnboarding, setShowOnboarding] = useState(false)
-  const [showDiagnostics, setShowDiagnostics] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -60,8 +59,6 @@ export function Shell() {
 
   useEffect(() => {
     void load()
-    const seen = localStorage.getItem('bn:seen_onboarding')
-    setShowOnboarding(!seen)
     const timer = window.setInterval(() => void load(), 60000)
     return () => window.clearInterval(timer)
   }, [])
@@ -81,14 +78,11 @@ export function Shell() {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                type="button"
-                onClick={() => void load()}
-                className="rounded-md border border-white/10 px-3 py-2 text-sm text-ink-100 transition hover:border-base-400/50 hover:text-base-400"
-              >
-                Refresh
-              </button>
-                <button type="button" onClick={() => setShowDiagnostics((s) => !s)} className="rounded-md border border-white/10 px-2 py-2 text-sm text-ink-100 transition hover:border-base-400/50 hover:text-base-400">
-                  Diagnostics
+                  type="button"
+                  onClick={() => void load()}
+                  className="rounded-md border border-white/10 px-3 py-2 text-sm text-ink-100 transition hover:border-base-400/50 hover:text-base-400"
+                >
+                  Refresh
                 </button>
               </div>
             </div>
@@ -144,42 +138,33 @@ export function Shell() {
           </div>
         </section>
       </div>
-      {showOnboarding ? <OnboardingModal onClose={() => { localStorage.setItem('bn:seen_onboarding', '1'); setShowOnboarding(false) }} /> : null}
-      {showDiagnostics ? <DiagnosticsPanel onClose={() => setShowDiagnostics(false)} /> : null}
+      {enableOnboarding ? <OnboardingModal onClose={() => undefined} /> : null}
     </main>
   )
 }
 
 function StatusRail({ health, feed, socialFeed }: { health?: HealthResponse; feed?: SignalFeedResponse; socialFeed?: SignalFeedResponse }) {
   const warnings = health?.stale_source_warnings || []
+  const currentStatus = health?.degraded_mode ? 'Needs attention' : health?.status || 'Monitoring'
   return (
     <>
       <section className="rounded-lg border border-white/10 bg-surface-900/72 p-4">
         <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-500">Attention queue</div>
         <div className="mt-3 grid grid-cols-3 gap-2">
-          <RailNumber label="Critical" value={feed?.severity_summary?.critical ?? 0} tone="text-rose-200" />
-          <RailNumber label="High" value={feed?.severity_summary?.high ?? 0} tone="text-amber-200" />
-          <RailNumber label="Total" value={feed?.signals_count ?? 0} tone="text-ink-50" />
+          <RailNumber label="Priority" value={(feed?.severity_summary?.critical ?? 0) + (feed?.severity_summary?.high ?? 0)} tone="text-rose-200" />
+          <RailNumber label="Signals" value={feed?.signals_count ?? 0} tone="text-ink-50" />
+          <RailNumber label="Shared" value={socialFeed?.signals_count ?? 0} tone="text-base-400" />
         </div>
       </section>
 
       <section className="rounded-lg border border-white/10 bg-surface-900/72 p-4">
-        <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-500">Social momentum</div>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <RailNumber label="Social" value={socialFeed?.signals_count ?? 0} tone="text-base-400" />
-          <RailNumber label="Momentum" value={health?.momentum_signals_generated ?? 0} tone="text-cyan-200" />
-          <RailNumber label="Published" value={health?.distributed_signals_count ?? 0} tone="text-emerald-200" />
-        </div>
-      </section>
-
-      <section className="rounded-lg border border-white/10 bg-surface-900/72 p-4">
-        <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-500">Pipeline</div>
+        <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-500">System posture</div>
         <div className="mt-4 space-y-3 text-sm">
-          <RailRow label="Scheduler" value={health?.scheduler_running ? 'Running' : 'Offline'} tone={health?.scheduler_running ? 'text-emerald-200' : 'text-rose-200'} />
-          <RailRow label="Redis" value={health?.redis_status || 'Unknown'} tone={health?.redis_status === 'connected' ? 'text-emerald-200' : 'text-amber-200'} />
-          <RailRow label="Gemini used" value={`${health?.gemini_calls_today ?? 0}/${health?.gemini_daily_cap ?? 50}`} />
-          <RailRow label="Escalated" value={health?.escalated_events_count ?? 0} />
-          <RailRow label="Farcaster" value={health?.last_farcaster_success_at ? 'Fresh' : 'Waiting'} tone={health?.last_farcaster_success_at ? 'text-emerald-200' : 'text-amber-200'} />
+          <RailRow label="Status" value={currentStatus} tone={health?.degraded_mode ? 'text-amber-200' : 'text-emerald-200'} />
+          <RailRow label="Freshness" value={warnings.length ? `${warnings.length} source warning${warnings.length === 1 ? '' : 's'}` : 'All sources current'} tone={warnings.length ? 'text-amber-200' : 'text-emerald-200'} />
+          <RailRow label="Last update" value={health?.last_poll_time ? new Date(health.last_poll_time).toLocaleString() : 'Pending'} />
+          <RailRow label="Next update" value={health?.next_poll_time ? new Date(health.next_poll_time).toLocaleString() : 'Pending'} />
+          <RailRow label="Signals in feed" value={health?.signals_in_feed ?? 0} />
         </div>
       </section>
 
@@ -196,15 +181,6 @@ function StatusRail({ health, feed, socialFeed }: { health?: HealthResponse; fee
         ) : (
           <p className="mt-3 text-sm text-emerald-200">Sources fresh</p>
         )}
-      </section>
-
-      <section className="rounded-lg border border-base-400/20 bg-base-500/[0.08] p-4">
-        <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-base-400">Premium feed</div>
-        <div className="mt-4 space-y-3 text-sm">
-          <RailRow label="Enrichment" value="Full" />
-          <RailRow label="Access" value="Gated" />
-          <RailRow label="Price" value="0.05 USDC" />
-        </div>
       </section>
     </>
   )

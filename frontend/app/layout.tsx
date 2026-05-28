@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Base Navigator',
-  description: 'Precomputed ecosystem intelligence for Base.'
+  description: 'Calm ecosystem intelligence for Base.'
 }
 
 export const viewport: Viewport = {

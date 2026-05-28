@@ -16,6 +16,21 @@ async def fetch_social_casts(*, limit: int | None = None, after: datetime | None
     global _last_neynar_fetch_ok
     settings = get_settings()
     if not settings.neynar_api_key:
+        # If API key is missing, attempt to load a local fallback dataset for dev/offline use
+        try:
+            import json
+            from pathlib import Path
+
+            fallback_path = Path(__file__).parent / 'sample_farcaster_fallback.json'
+            if fallback_path.exists():
+                with open(fallback_path, 'r', encoding='utf-8') as fh:
+                    data = json.load(fh)
+                    if isinstance(data, list):
+                        logger.info("Using local Farcaster fallback dataset.")
+                        _last_neynar_fetch_ok = True
+                        return data
+        except Exception:
+            logger.info("Skipping Farcaster fetch because NEYNAR_API_KEY is missing.")
         _last_neynar_fetch_ok = None
         logger.info("Skipping Farcaster fetch because NEYNAR_API_KEY is missing.")
         return []
