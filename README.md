@@ -1,6 +1,6 @@
-# Base Navigator
+# Base Navigator - ECHO
 
-Base Navigator is a FastAPI service that monitors Base ecosystem governance, grants activity, and Farcaster social momentum, scores meaningful changes deterministically, selectively enriches high-value signals, and serves a precomputed intelligence feed for builders, agents, and internal automation.
+ECHO is a FastAPI service that monitors Base ecosystem governance, grants activity, and Farcaster social momentum, scores meaningful changes deterministically, selectively enriches high-value signals, and serves a precomputed intelligence feed for builders, agents, and internal automation.
 
 The current product is intentionally small: a scheduled signal pipeline, feed-oriented APIs, one public health endpoint, Redis-backed operational memory with in-memory fallback, selective Gemini enrichment, structured request logging, rate limiting, Docker deployment files, and an optional Farcaster daily post script.
 
